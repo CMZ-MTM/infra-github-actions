@@ -2,8 +2,6 @@
 
 This repository contains **reusable GitHub Actions workflows** used across CMZ projects.
 
-Its main goal is to centralize **deployment logic** so that application repositories remain clean, consistent, and easy to maintain.
-
 ---
 
 ## 🎯 Purpose
@@ -19,7 +17,7 @@ This repository **does not** contain application code.
 
 ## 🏗️ Current Workflows
 
-### `deploy.yml`
+### `deploy-tailscale-compose.yml`
 
 Reusable deployment workflow based on:
 
@@ -37,26 +35,75 @@ Reusable deployment workflow based on:
 - Ephemeral CI runners
 - Full audit trail via Tailscale Admin
 
----
-
-## 🔐 Security Model
-
-- CI runners join the Tailnet using **Tailscale OAuth**
-- Runners are tagged as `tag:ci`
-- Servers are tagged as `tag:servers`
-- Access is controlled via Tailscale ACLs
-- No persistent credentials are stored on servers
-
-Production deployments are protected via:
-- Branch protection rules
-- Job-level gating based on `github.actor`
-- Separate deployment targets
 
 ---
 
 ## 🚀 How It Is Used
 
-Application repositories **call** the reusable workflow:
+Application repositories **call** the reusable workflow from their own deployment workflows.
+
+### Example (application repository)
 
 ```yaml
-uses: cmz/github-actions/.github/workflows/deploy.yml@v1
+jobs:
+  deploy_test:
+    uses: cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v1
+    with:
+      environment: test
+      server: ${{ vars.DEPLOY_SERVER_TEST }}
+    secrets:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+```
+
+---
+
+## ⚙️ Required Inputs
+
+| Input        | Description                                   | Example     |
+|-------------|-----------------------------------------------|-------------|
+| environment | Deployment environment label                  | `test`      |
+| server      | Tailscale MagicDNS name of the target server  | `testsrv01` |
+
+### Optional Inputs
+
+| Input        | Default     | Description                          |
+|-------------|-------------|--------------------------------------|
+| deploy_user | `deploy`    | SSH user on the target server        |
+| apps_root   | `/srv/apps` | Base directory where apps are stored |
+
+---
+
+## 🔑 Required Secrets
+
+| Secret            | Description                                  |
+|-------------------|----------------------------------------------|
+| TAILSCALE_AUTHKEY | Tailscale auth key for CI runner authentication |
+
+Secrets must be defined at **organization** or **repository** level in the calling repository.
+
+---
+
+## 🏷️ Versioning
+
+Reusable workflows are versioned using Git tags.
+
+Application repositories should always reference a **fixed version**, for example:
+
+```yaml
+@v1
+```
+
+Do **not** reference `main` directly.
+
+---
+
+## 📌 Notes
+
+- This repository is intentionally kept small and focused
+- Changes here can affect multiple services
+- Prefer additive changes over breaking ones
+- Breaking changes should result in a new major tag (`v2`, `v3`, …)
+
+---
+
+Maintained by the CMZ engineering team.

@@ -1,4 +1,4 @@
-name: Deploy via Tailscale
+name: Deploy (Tailscale + Docker Compose)
 
 on:
   workflow_call:
@@ -30,6 +30,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Authorize production deployment
+        if: inputs.environment == 'prod'
+        env:
+          ALLOWED_ACTORS: ${{ vars.DEPLOY_PROD_ALLOWED_ACTORS }}
+        run: |
+          allowed="${ALLOWED_ACTORS//[[:space:]]/}"
+
+          if [ -z "$allowed" ]; then
+            echo "::error::DEPLOY_PROD_ALLOWED_ACTORS is empty/unset. Denying prod deployment."
+            exit 1
+          fi
+
+          case ",$allowed," in
+            *,"$GITHUB_ACTOR",*)
+              echo "✅ Authorized: $GITHUB_ACTOR"
+              ;;
+            *)
+              echo "::error::Unauthorized actor '$GITHUB_ACTOR'. Allowed: $allowed"
+              exit 1
+              ;;
+          esac
+
       - name: Install Tailscale
         run: curl -fsSL https://tailscale.com/install.sh | sh
 
