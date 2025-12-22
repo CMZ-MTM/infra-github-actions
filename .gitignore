@@ -1,0 +1,17 @@
+# This repo only contains YAML + Markdown, no code.
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.log
+
+# Local env files (should never be committed)
+.env
+.env.*

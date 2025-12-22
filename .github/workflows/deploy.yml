@@ -1,0 +1,55 @@
+name: Deploy via Tailscale
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment label (test/prod)"
+        required: true
+        type: string
+      server:
+        description: "Tailscale MagicDNS name of the target server (e.g. testsrv01)"
+        required: true
+        type: string
+      deploy_user:
+        description: "SSH user on the target server"
+        required: false
+        type: string
+        default: "deploy"
+      apps_root:
+        description: "Base path where the infra repos are stored"
+        required: false
+        type: string
+        default: "/srv/apps"
+    secrets:
+      TAILSCALE_AUTHKEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Tailscale
+        run: curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Connect to Tailnet
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        run: |
+          sudo tailscale up \
+            --authkey="$TS_AUTHKEY" \
+            --hostname="github-deploy-${{ github.event.repository.name }}-${{ inputs.environment }}-${{ github.run_id }}" \
+            --accept-dns=true
+
+      - name: Deploy to ${{ inputs.server }}
+        run: |
+          REPO="${{ github.event.repository.name }}"
+          DEPLOY_DIR="${{ inputs.apps_root }}/infra-${{ inputs.server }}/${REPO}"
+
+          tailscale ssh "${{ inputs.deploy_user }}@${{ inputs.server }}" "
+            set -e
+            cd ${DEPLOY_DIR} &&
+            docker compose pull &&
+            docker compose up -d
+          "
