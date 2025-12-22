@@ -95,6 +95,11 @@ Application repositories should always reference a **fixed version**, for exampl
 
 Do **not** reference `main` directly.
 
+```
+git tag v1
+git push origin v1
+```
+
 ---
 
 ## 📌 Notes
