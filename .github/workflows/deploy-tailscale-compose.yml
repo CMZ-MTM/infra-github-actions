@@ -64,14 +64,42 @@ jobs:
             --hostname="github-deploy-${{ github.event.repository.name }}-${{ inputs.environment }}-${{ github.run_id }}" \
             --accept-dns=true
 
-      - name: Deploy to ${{ inputs.server }}
+      - name: Deploy migrations (optional)
+        env:
+          MIGRATIONS_NEEDED: ${{ vars.DEPLOY_MIGRATIONS_NEEDED }}
+          MIGRATIONS_NAME: ${{ vars.DEPLOY_MIGRATIONS_CONTAINER_NAME }}
+        run: |
+          BASE_DIR="${{ inputs.apps_root }}/infra-${{ inputs.server }}"
+          need="$(echo "${MIGRATIONS_NEEDED:-no}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          mig_name="$(echo "${MIGRATIONS_NAME:-}" | tr -d '[:space:]')"
+
+          if [[ "$need" == "yes" || "$need" == "true" || "$need" == "1" ]]; then
+            if [ -z "$mig_name" ]; then
+              echo "::error::DEPLOY_MIGRATIONS_NEEDED is enabled but DEPLOY_MIGRATIONS_CONTAINER_NAME is empty."
+              exit 1
+            fi
+
+            MIG_DIR="${BASE_DIR}/${mig_name}"
+            echo "📦 Migrations enabled. Deploying from: ${MIG_DIR}"
+
+            tailscale ssh "${{ inputs.deploy_user }}@${{ inputs.server }}" "
+              set -e
+              cd ${MIG_DIR}
+              docker compose pull
+              docker compose up -d
+            "
+          else
+            echo "ℹ Migrations not enabled (DEPLOY_MIGRATIONS_NEEDED=${MIGRATIONS_NEEDED:-unset}). Skipping."
+          fi
+
+      - name: Deploy application
         run: |
           REPO="${{ github.event.repository.name }}"
           DEPLOY_DIR="${{ inputs.apps_root }}/infra-${{ inputs.server }}/${REPO}"
 
           tailscale ssh "${{ inputs.deploy_user }}@${{ inputs.server }}" "
             set -e
-            cd ${DEPLOY_DIR} &&
-            docker compose pull &&
+            cd ${DEPLOY_DIR}
+            docker compose pull
             docker compose up -d
           "
