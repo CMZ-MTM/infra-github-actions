@@ -19,7 +19,7 @@ This repository **does not** contain application code.
 
 ### `deploy-tailscale-compose.yml`
 
-Reusable deployment workflow based on:
+Reusable deployment workflow for shipping Docker Compose apps over Tailscale. It relies on:
 
 - **GitHub Actions**
 - **Tailscale (zero-trust networking)**
@@ -40,9 +40,9 @@ Reusable deployment workflow based on:
 
 ## 🚀 How It Is Used
 
-Application repositories **call** the reusable workflow from their own deployment workflows.
+Application repositories **call** the reusable workflow from their own deployment workflows. The target host must already have Docker + Docker Compose and your repo checked out at `${apps_root}/infra-${server}/${repo}`.
 
-### Example (application repository)
+### Minimal example (test)
 
 ```yaml
 jobs:
@@ -53,6 +53,25 @@ jobs:
       server: ${{ vars.DEPLOY_SERVER_TEST }}
     secrets:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+```
+
+### With migrations enabled (prod)
+
+```yaml
+jobs:
+  deploy_prod:
+    uses: cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v1
+    with:
+      environment: prod
+      server: ${{ vars.DEPLOY_SERVER_PROD }}
+      deploy_user: deploy
+      apps_root: /srv/apps
+    secrets:
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+    vars:
+      DEPLOY_PROD_ALLOWED_ACTORS: "octocat,another-user"
+      DEPLOY_MIGRATIONS_NEEDED: "true"
+      DEPLOY_MIGRATIONS_CONTAINER_NAME: "myapp-migrations"
 ```
 
 ---
@@ -83,22 +102,26 @@ Secrets must be defined at **organization** or **repository** level in the calli
 
 ---
 
+## 🌳 Required Variables (in calling repo)
+
+- `DEPLOY_PROD_ALLOWED_ACTORS`: required for prod; comma/space-separated GitHub usernames allowed to deploy prod.
+- `DEPLOY_MIGRATIONS_NEEDED`: optional; set to yes/true/1 to run the migrations compose project before the main app.
+- `DEPLOY_MIGRATIONS_CONTAINER_NAME`: required only when migrations are enabled; directory/container name under `${apps_root}/infra-${server}`.
+
+---
+
 ## 🏷️ Versioning
 
-Reusable workflows are versioned using Git tags.
+Reusable workflows are shipped via Git tags; always pin to a tag instead of `main`.
 
-Application repositories should always reference a **fixed version**, for example:
+Create or bump a tag:
 
-```yaml
-@v1
-```
-
-Do **not** reference `main` directly.
-
-```
+```bash
 git tag v1
 git push origin v1
 ```
+
+Example usage pin: `cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v1`
 
 ---
 

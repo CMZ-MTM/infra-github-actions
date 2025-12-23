@@ -7,20 +7,6 @@ on:
         description: "Environment label (test/prod)"
         required: true
         type: string
-      server:
-        description: "Tailscale MagicDNS name of the target server (e.g. testsrv01)"
-        required: true
-        type: string
-      deploy_user:
-        description: "SSH user on the target server"
-        required: false
-        type: string
-        default: "deploy"
-      apps_root:
-        description: "Base path where the infra repos are stored"
-        required: false
-        type: string
-        default: "/srv/apps"
     secrets:
       TAILSCALE_AUTHKEY:
         required: true
@@ -30,6 +16,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Resolve config from repo/org variables (simple) + validate
+      - name: Resolve and validate deployment config
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+
+          SERVER_TEST: ${{ vars.DEPLOY_SERVER_TEST }}
+          SERVER_PROD: ${{ vars.DEPLOY_SERVER_PROD }}
+
+          DEPLOY_USER_VAR: ${{ vars.DEPLOY_USER }}
+          APPS_ROOT_VAR: ${{ vars.DEPLOY_APPS_ROOT }}
+
+          MIGRATIONS_NEEDED_VAR: ${{ vars.DEPLOY_MIGRATIONS_NEEDED }}
+          MIGRATIONS_NAME_VAR: ${{ vars.DEPLOY_MIGRATIONS_CONTAINER_NAME }}
+        run: |
+          set -e
+
+          # Pick server based on environment
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            SERVER="$SERVER_PROD"
+            if [ -z "$SERVER" ]; then
+              echo "::error::DEPLOY_SERVER_PROD is not set. Please set it in repo variables."
+              exit 1
+            fi
+          else
+            SERVER="$SERVER_TEST"
+            if [ -z "$SERVER" ]; then
+              echo "::error::DEPLOY_SERVER_TEST is not set. Please set it in repo variables."
+              exit 1
+            fi
+          fi
+
+          DEPLOY_USER="${DEPLOY_USER_VAR:-deploy}"
+          APPS_ROOT="${APPS_ROOT_VAR:-/srv/apps}"
+
+          # Migrations config
+          NEED="$(echo "${MIGRATIONS_NEEDED_VAR:-no}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          MIG_NAME="$(echo "${MIGRATIONS_NAME_VAR:-}" | tr -d '[:space:]')"
+
+          if [[ "$NEED" == "yes" || "$NEED" == "true" || "$NEED" == "1" ]]; then
+            if [ -z "$MIG_NAME" ]; then
+              echo "::error::DEPLOY_MIGRATIONS_NEEDED is enabled but DEPLOY_MIGRATIONS_CONTAINER_NAME is empty. Please set it in repo variables."
+              exit 1
+            fi
+          fi
+
+          # Export for later steps
+          echo "DEPLOY_SERVER=$SERVER" >> "$GITHUB_ENV"
+          echo "DEPLOY_USER=$DEPLOY_USER" >> "$GITHUB_ENV"
+          echo "DEPLOY_APPS_ROOT=$APPS_ROOT" >> "$GITHUB_ENV"
+          echo "DEPLOY_MIGRATIONS_NEEDED=$NEED" >> "$GITHUB_ENV"
+          echo "DEPLOY_MIGRATIONS_CONTAINER_NAME=$MIG_NAME" >> "$GITHUB_ENV"
+
+          echo "✅ Resolved config:"
+          echo "  - env: $ENVIRONMENT"
+          echo "  - server: $SERVER"
+          echo "  - user: $DEPLOY_USER"
+          echo "  - apps_root: $APPS_ROOT"
+          echo "  - migrations_needed: $NEED"
+          echo "  - migrations_name: ${MIG_NAME:-<none>}"
+
+      # 2) Authorize prod deployments (only prod)
       - name: Authorize production deployment
         if: inputs.environment == 'prod'
         env:
@@ -52,6 +99,7 @@ jobs:
               ;;
           esac
 
+      # 3) Tailscale connect
       - name: Install Tailscale
         run: curl -fsSL https://tailscale.com/install.sh | sh
 
@@ -64,40 +112,32 @@ jobs:
             --hostname="github-deploy-${{ github.event.repository.name }}-${{ inputs.environment }}-${{ github.run_id }}" \
             --accept-dns=true
 
+      # 4) Migrations first (if enabled)
       - name: Deploy migrations (optional)
-        env:
-          MIGRATIONS_NEEDED: ${{ vars.DEPLOY_MIGRATIONS_NEEDED }}
-          MIGRATIONS_NAME: ${{ vars.DEPLOY_MIGRATIONS_CONTAINER_NAME }}
         run: |
-          BASE_DIR="${{ inputs.apps_root }}/infra-${{ inputs.server }}"
-          need="$(echo "${MIGRATIONS_NEEDED:-no}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-          mig_name="$(echo "${MIGRATIONS_NAME:-}" | tr -d '[:space:]')"
+          if [[ "$DEPLOY_MIGRATIONS_NEEDED" == "yes" || "$DEPLOY_MIGRATIONS_NEEDED" == "true" || "$DEPLOY_MIGRATIONS_NEEDED" == "1" ]]; then
+            BASE_DIR="${DEPLOY_APPS_ROOT}/infra-${DEPLOY_SERVER}"
+            MIG_DIR="${BASE_DIR}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}"
 
-          if [[ "$need" == "yes" || "$need" == "true" || "$need" == "1" ]]; then
-            if [ -z "$mig_name" ]; then
-              echo "::error::DEPLOY_MIGRATIONS_NEEDED is enabled but DEPLOY_MIGRATIONS_CONTAINER_NAME is empty."
-              exit 1
-            fi
+            echo "📦 Deploying migrations from: ${MIG_DIR}"
 
-            MIG_DIR="${BASE_DIR}/${mig_name}"
-            echo "📦 Migrations enabled. Deploying from: ${MIG_DIR}"
-
-            tailscale ssh "${{ inputs.deploy_user }}@${{ inputs.server }}" "
+            tailscale ssh "${DEPLOY_USER}@${DEPLOY_SERVER}" "
               set -e
               cd ${MIG_DIR}
               docker compose pull
               docker compose up -d
             "
           else
-            echo "ℹ Migrations not enabled (DEPLOY_MIGRATIONS_NEEDED=${MIGRATIONS_NEEDED:-unset}). Skipping."
+            echo "ℹ️ Migrations not enabled. Skipping."
           fi
 
+      # 5) Deploy application
       - name: Deploy application
         run: |
           REPO="${{ github.event.repository.name }}"
-          DEPLOY_DIR="${{ inputs.apps_root }}/infra-${{ inputs.server }}/${REPO}"
+          DEPLOY_DIR="${DEPLOY_APPS_ROOT}/infra-${DEPLOY_SERVER}/${REPO}"
 
-          tailscale ssh "${{ inputs.deploy_user }}@${{ inputs.server }}" "
+          tailscale ssh "${DEPLOY_USER}@${DEPLOY_SERVER}" "
             set -e
             cd ${DEPLOY_DIR}
             docker compose pull
