@@ -1,4 +1,4 @@
-# Deploy using Docker Compose + Tailscale
+# 🚀 Deploy using Docker Compose + Tailscale
 
 Reusable GitHub Actions workflow for shipping Docker Compose apps over Tailscale.
 
@@ -9,7 +9,7 @@ Reusable GitHub Actions workflow for shipping Docker Compose apps over Tailscale
 
 ---
 
-## What the workflow does
+## 🛠️ What the workflow does
 
 - Resolves deployment config from GitHub variables (server, user, app root, migrations)
 - For prod, only allows actors listed in `DEPLOY_PROD_ALLOWED_ACTORS`
@@ -21,7 +21,7 @@ Target hosts must already have Docker + Docker Compose and the repo checked out 
 
 ---
 
-## Inputs
+## 🎛️ Inputs
 
 The following inputs need to be declared when calling the workflow.
 
@@ -45,7 +45,7 @@ The following secrets need to be declared when calling the workflow.
 
 Though not passed directly to the workflow as inputs or secrets, the following variables need to be on the repository for the workflow to work.
 
-### Required
+### ✅ Required
 
 Set these in the calling repository (or org-level where noted).
 
@@ -57,14 +57,14 @@ Set these in the calling repository (or org-level where noted).
 
 ---
 
-### Migrations (optional)
+### 🐘 Migrations (optional)
 
 | Scope | Variable | Values | Notes |
 |-------|----------|--------|-------|
 | Repo  | `DEPLOY_MIGRATIONS_NEEDED` | `yes`/`no` | Enables the migrations step |
 | Repo  | `DEPLOY_MIGRATIONS_CONTAINER_NAME` | string | Required when migrations are enabled (e.g. `myapp-migrations`) |
 
-### Other (optional)
+### 🧰 Other (optional)
 
 | Scope | Variable | Default | Purpose |
 |-------|----------|---------|---------|
@@ -73,7 +73,7 @@ Set these in the calling repository (or org-level where noted).
 
 ---
 
-## 🚀 How to call
+## 📦 How to call
 
 The workflow is invoked from application repositories. Pin to a tag (see versioning).
 
@@ -93,7 +93,7 @@ For prod, set `environment: prod` and ensure `DEPLOY_PROD_ALLOWED_ACTORS` and `D
 
 ## 🏷️ Versioning
 
-### Creating a new version
+### 🆕 Creating a new version
 
 Reusable workflows are shipped via Git tags; always pin to a tag instead of `main`.
 
@@ -104,7 +104,7 @@ git push origin v2
 
 Example usage pin: `cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v2`
 
-### Editing an exiting version
+### ✏️ Editing an exiting version
 
 > ⚠️ CAUTION
 > Never do this when using breaking changes
