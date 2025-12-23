@@ -1,62 +1,81 @@
-# Deploy using docker compose and Tailscale
+# Deploy using Docker Compose + Tailscale
 
+Reusable GitHub Actions workflow for shipping Docker Compose apps over Tailscale.
 
-Reusable deployment workflow for shipping Docker Compose apps over Tailscale. It relies on:
-
-- **GitHub Actions**
-- **Tailscale (zero-trust networking)**
-- **Docker Compose**
-- **Private infrastructure (no public IPs)**
-
-#### Key characteristics
-
-- No public SSH
-- No exposed ports
-- No VPN server
+- No public SSH or exposed ports
+- No VPN server to manage
 - Identity-based access (Tailscale + GitHub)
-- Ephemeral CI runners
-- Full audit trail via Tailscale Admin
-
+- Ephemeral CI runners with full audit trail via Tailscale Admin
 
 ---
 
-## Configurations in repo
+## What the workflow does
 
-### 🔑 Required Secrets
+- Resolves deployment config from GitHub variables (server, user, app root, migrations)
+- For prod, only allows actors listed in `DEPLOY_PROD_ALLOWED_ACTORS`
+- Installs + connects Tailscale on the runner using `TAILSCALE_AUTHKEY`
+- Optionally runs migrations via `docker compose` in `infra-${server}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}`
+- Deploys the app via `docker compose pull && docker compose up -d` in `infra-${server}/${repo}`
 
-**Org level secrets**
-
-| Secret            | Description                                     |
-|-------------------|-------------------------------------------------|
-| TAILSCALE_AUTHKEY | Tailscale auth key for CI runner authentication |
-
-Secrets must be defined at **organization** or **repository** level in the calling repository.
-
-
-### 🌳 Required Variables
-
-**Org level variables**
-
-| Variable                           | Values                                  | Example                     |
-|------------------------------------|-----------------------------------------|-----------------------------|
-| `DEPLOY_PROD_ALLOWED_ACTORS`       | Comma/space-separated GitHub usernames  | `name-surname,another-user` |
-
-
-**Repo level variables**
-
-| Variable                           | Values                                  | Example                     |
-|------------------------------------|-----------------------------------------|-----------------------------|
-| `DEPLOY_MIGRATIONS_NEEDED`         | `yes`, `no`                             | `yes`, `no`                 |
-| `DEPLOY_MIGRATIONS_CONTAINER_NAME` | Name of the container                   | `myapp-migrations`          |
+Target hosts must already have Docker + Docker Compose and the repo checked out at `${APPS_ROOT}/infra-${SERVER}/${REPO}`.
 
 ---
 
-## 🚀 How to Call
+## Inputs
 
-Application repositories **call** the reusable workflow from their own deployment workflows.
-The target webserver must already have Docker + Docker Compose and your repo checked out at `${apps_root}/infra-${server}/${repo}`.
+The following inputs need to be declared when calling the workflow.
 
-**Example**
+| Input        | Description                                   | Values     |
+|-------------|-----------------------------------------------|-------------|
+| environment | Deployment environment label                  | `prod` or `test`      |
+
+---
+
+## 🔑 Required secret
+
+The following secrets need to be declared when calling the workflow.
+
+| Scope | Secret            | Description                                     |
+|-------|-------------------|-------------------------------------------------|
+| Org or repo | `TAILSCALE_AUTHKEY` | Tailscale auth key for the CI runner |
+
+---
+
+## 🌳 Variables
+
+Though not passed directly to the workflow as inputs or secrets, the following variables need to be on the repository for the workflow to work.
+
+### Required
+
+Set these in the calling repository (or org-level where noted).
+
+| Scope | Variable | Purpose | Example |
+|-------|----------|---------|---------|
+| Repo  | `DEPLOY_SERVER_TEST` | MagicDNS hostname for test deployments | `testsrv01` |
+| Repo  | `DEPLOY_SERVER_PROD` | MagicDNS hostname for prod deployments | `prodsrv01` |
+| Org   | `DEPLOY_PROD_ALLOWED_ACTORS` | Comma/space-separated GitHub usernames permitted to deploy prod | `name-surname,another-user` |
+
+---
+
+### Migrations (optional)
+
+| Scope | Variable | Values | Notes |
+|-------|----------|--------|-------|
+| Repo  | `DEPLOY_MIGRATIONS_NEEDED` | `yes`/`no` | Enables the migrations step |
+| Repo  | `DEPLOY_MIGRATIONS_CONTAINER_NAME` | string | Required when migrations are enabled (e.g. `myapp-migrations`) |
+
+### Other (optional)
+
+| Scope | Variable | Default | Purpose |
+|-------|----------|---------|---------|
+| Repo  | `DEPLOY_USER` | `deploy` | SSH user on the target server |
+| Repo  | `DEPLOY_APPS_ROOT` | `/srv/apps` | Base directory where apps are stored |
+
+---
+
+## 🚀 How to call
+
+The workflow is invoked from application repositories. Pin to a tag (see versioning).
 
 ```yaml
 jobs:
@@ -64,49 +83,48 @@ jobs:
     uses: cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v1
     with:
       environment: test
-      server: ${{ vars.DEPLOY_SERVER_TEST }}
     secrets:
       TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
 ```
 
----
-
-## ⚙️ Inputs 
-
-The following inputs are used internally in the workflow
-
-| Input        | Description                                   | Example     |
-|-------------|-----------------------------------------------|-------------|
-| environment | Deployment environment label                  | `test`      |
-| server      | Tailscale MagicDNS name of the target server  | `testsrv01` |
-
-### Optional Inputs
-
-| Input        | Default     | Description                          |
-|-------------|-------------|--------------------------------------|
-| deploy_user | `deploy`    | SSH user on the target server        |
-| apps_root   | `/srv/apps` | Base directory where apps are stored |
+For prod, set `environment: prod` and ensure `DEPLOY_PROD_ALLOWED_ACTORS` and `DEPLOY_SERVER_PROD` are set.
 
 ---
 
 ## 🏷️ Versioning
 
+### Creating a new version
+
 Reusable workflows are shipped via Git tags; always pin to a tag instead of `main`.
 
-Create or bump a tag:
+```bash
+git tag v2
+git push origin v2
+```
+
+Example usage pin: `cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v2`
+
+### Editing an exiting version
+
+> ⚠️ CAUTION
+> Never do this when using breaking changes
+
 
 ```bash
+# Delete the exiting tag
+git tag -d v1
+git push origin :refs/tags/v1
+
+# Recreate the same tag
 git tag v1
 git push origin v1
 ```
-
-Example usage pin: `cmz-mtm/github-actions/.github/workflows/deploy-tailscale-compose.yml@v1`
 
 ---
 
 ## 📌 Notes
 
-- This repository is intentionally kept small and focused
+- Repo is intentionally small and focused
 - Changes here can affect multiple services
 - Prefer additive changes over breaking ones
 - Breaking changes should result in a new major tag (`v2`, `v3`, …)
