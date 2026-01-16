@@ -11,6 +11,12 @@ inputs:
   dotnet_version:
     description: "DotNet Version"
     required: true
+  package_user:
+    description: "Package User"
+    required: true
+  package_password:
+    description: "Package Password"
+    required: true
 
 runs:
   using: "composite"
@@ -48,8 +54,8 @@ runs:
         dotnet nuget remove source CMZ-MTM || true
         dotnet nuget add source "https://nuget.pkg.github.com/cmz-mtm/index.json" \
           --name CMZ-MTM \
-          --username CMZ-MTM \
-          --password ${{ inputs.token }} \
+          --username ${{ inputs.package_user }} \
+          --password ${{ inputs.package_password }} \
           --store-password-in-clear-text \
           --configfile NuGet.Config
 
