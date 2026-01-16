@@ -15,3 +15,8 @@ Thumbs.db
 # Local env files (should never be committed)
 .env
 .env.*
+
+# VS files
+FileContentIndex
+v17
+.vs
