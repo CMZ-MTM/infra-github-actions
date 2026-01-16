@@ -1,0 +1,115 @@
+name: Build backend container
+description: Build and publish a .NET Container
+
+inputs:  
+  solution_path:
+    description: 'Path to the .sln file'
+    required: true
+  project_path:
+    description: 'Path to the .csproj file'
+    required: true
+  token:
+    description: "GitHub token"
+    required: true  
+  package_user:
+    description: "Package User"
+    required: true
+  package_password:
+    description: "Package Password"
+    required: true
+  github_actor:
+    description: "GitHub Actor"
+    required: true
+  container_name:
+    description: "Docker container name"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v4
+      with:
+        versionSpec: '6.x'
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v4
+
+    - name: Set VERSION based on branch
+      shell: bash
+      run: |
+          if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "VERSION=${{ steps.gitversion.outputs.assemblySemFileVer }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${{ steps.gitversion.outputs.FullSemVer }}" | tr '+' '-' >> $GITHUB_ENV
+          fi
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Login to GHCR
+      uses: docker/login-action@v3
+      with:
+          registry: ghcr.io
+          username: ${{ inputs.github_actor }}
+          password: ${{ inputs.token }}
+
+    - name: Configure NuGet Authentication
+      shell: bash
+      run: |
+        dotnet nuget remove source CMZ-MTM || true
+        dotnet nuget add source "https://nuget.pkg.github.com/cmz-mtm/index.json" \
+          --name CMZ-MTM \
+          --username ${{ inputs.package_user }} \
+          --password ${{ inputs.package_password }} \
+          --store-password-in-clear-text \
+          --configfile NuGet.Config
+
+    - name: NuGet Restore
+      shell: bash
+      run: dotnet restore ${{github.workspace}}/${{ inputs.solution_path }}
+
+    - name: Build and publish
+      shell: bash
+      run: dotnet publish ${{github.workspace}}/${{ inputs.project_path }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.assemblySemFileVer }} -o ./build/publish
+
+    - name: Build and Push Image (Test)
+      if: github.ref == 'refs/heads/test'
+      uses: docker/build-push-action@v5
+      with:
+        context: ./build
+        file: ${{github.workspace}}/DockerBuild
+        tags: |
+            ghcr.io/cmz-mtm/${{ inputs.container_name }}:${{ env.VERSION }}
+            ghcr.io/cmz-mtm/${{ inputs.container_name }}:test-latest
+        push: true
+
+    - name: Build and Push Image (Master)
+      if: github.ref == 'refs/heads/master'
+      uses: docker/build-push-action@v5
+      with:
+        context: ./build
+        file: ${{github.workspace}}/DockerBuild
+        tags: |
+            ghcr.io/cmz-mtm/${{ inputs.container_name }}:${{ env.VERSION }}
+            ghcr.io/cmz-mtm/${{ inputs.container_name }}:latest
+        push: true
+          
+    - name: Build and Push Image (Dev)
+      if: github.ref == 'refs/heads/dev'
+      uses: docker/build-push-action@v5
+      with:
+        context: ./build
+        file: ${{github.workspace}}/DockerBuild
+        tags: ghcr.io/cmz-mtm/${{ inputs.container_name }}:dev-latest
+        push: true 
