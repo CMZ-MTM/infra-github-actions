@@ -1,0 +1,73 @@
+name: Build and Publish .NET Package
+description: Build and publish a .NET package to GitHub Packages NuGet registry.
+
+inputs:  
+  project_path:
+    description: 'Path to the .csproj file'
+    required: true
+  token:
+    description: "GitHub token"
+    required: true
+  dotnet_version:
+    description: "DotNet Version"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v4
+      with:
+        versionSpec: '6.x'
+
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v4
+
+    - name: Set VERSION based on branch
+      shell: bash
+      run: |
+        if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+          echo "VERSION=${{ steps.gitversion.outputs.assemblySemFileVer }}" >> $GITHUB_ENV
+        else
+          echo "VERSION=${{ steps.gitversion.outputs.FullSemVer }}" >> $GITHUB_ENV
+        fi
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+
+    - name: Configure NuGet Authentication
+      shell: bash
+      run: |
+        dotnet nuget remove source CMZ-MTM || true
+        dotnet nuget add source "https://nuget.pkg.github.com/cmz-mtm/index.json" \
+          --name CMZ-MTM \
+          --username CMZ-MTM \
+          --password ${{ inputs.token }} \
+          --store-password-in-clear-text \
+          --configfile NuGet.Config
+
+    - name: Restore NuGet Packages
+      shell: bash
+      run: dotnet restore ${{ github.workspace }}/${{ inputs.project_path }}
+
+    - name: Build
+      shell: bash
+      run: dotnet build ${{ github.workspace }}/${{ inputs.project_path }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.assemblySemFileVer }}
+
+    - name: Pack
+      shell: bash
+      run: |
+        rm -rf nuget/
+        dotnet pack ${{ github.workspace }}/${{ inputs.project_path }} --no-build --configuration Release -p:Version=${{ env.VERSION }} --output nuget
+
+    - name: Publish to GitHub Packages
+      shell: bash
+      run: |
+        dotnet nuget push nuget/*.nupkg -k ${{ inputs.token }} -s "https://nuget.pkg.github.com/CMZ-MTM/index.json" --skip-duplicate --no-symbols
