@@ -84,16 +84,26 @@ runs:
     - name: NuGet Restore
       shell: bash
       run: dotnet restore ${{github.workspace}}/${{ inputs.solution_path }}
-      
+
+    - name: Build
+      shell: bash
+      run: dotnet build ${{github.workspace}}/${{ inputs.project_path }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.assemblySemFileVer }}
+
+    - name: Setup Ef Core Tools
+      shell: bash
+      run: dotnet tool install dotnet-ef --version 10.0.2 --global
+            
     - name: Build EF migration bundle
       shell: bash
-      run: |
-        dotnet tool install dotnet-ef --version 10.0.2 --global
-        export PATH="$PATH:/home/runner/.dotnet/tools"          
-        cd migrations
-        dotnet ef migrations bundle --project ${{github.workspace}}/${{ inputs.ef_project }} \
-          --startup-project ${{github.workspace}}/${{ inputs.ef_startup_project }} \
-          --output efbundle --self-contained --target-runtime linux-x64
+      working-directory: migrations
+      run: |        
+        export PATH="$PATH:/home/runner/.dotnet/tools"        
+        dotnet ef migrations bundle \
+          --project "${{ github.workspace }}/${{ inputs.ef_project }}" \
+          --startup-project "${{github.workspace}}/${{ inputs.ef_startup_project }}" \
+          --output efbundle \
+          --self-contained \
+          --target-runtime linux-x64
 
     - name: Build and Push Migration Image (Test)
       if: github.ref == 'refs/heads/test'
