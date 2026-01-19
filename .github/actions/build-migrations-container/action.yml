@@ -63,6 +63,10 @@ runs:
       with:
         dotnet-version: '10.x'
 
+    - name: Setup Ef Core Tools
+      shell: bash
+      run: dotnet tool install dotnet-ef --version 10.0.1 --global
+
     - name: Login to GHCR
       uses: docker/login-action@v3
       with:
@@ -84,15 +88,7 @@ runs:
     - name: NuGet Restore
       shell: bash
       run: dotnet restore ${{github.workspace}}/${{ inputs.solution_path }}
-
-    - name: Build
-      shell: bash
-      run: dotnet build ${{github.workspace}}/${{ inputs.project_path }} --configuration Release --no-restore -p:Version=${{ steps.gitversion.outputs.assemblySemFileVer }}
-
-    - name: Setup Ef Core Tools
-      shell: bash
-      run: dotnet tool install dotnet-ef --version 10.0.2 --global
-            
+      
     - name: Build EF migration bundle
       shell: bash
       working-directory: migrations
