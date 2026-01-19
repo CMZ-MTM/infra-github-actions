@@ -24,3 +24,20 @@ A centralized GitHub Actions workflow that securely deploys applications via Tai
 <a href="/.github/workflows/deploy-tailscale-compose.README.md ">View Documentation</a>
 
 ---
+
+## 🏗️ Current Actions
+
+### `build-backend-container`
+
+A centralized GitHub action that generates optimized Docker images for backend services, ensuring consistent build processes and configurations across multiple repositories.
+
+<a href="/.github/actions/build-backend-container/README.md ">View Documentation</a>
+
+---
+### `build-migrations-container`
+
+A centralized GitHub action that generates optimized Docker images for database migration tasks, ensuring consistent build processes and configurations across multiple repositories.
+
+<a href="/.github/actions/build-migrations-container/README.md ">View Documentation</a>
+
+---
