@@ -96,9 +96,10 @@ runs:
     - name: Build EF migration bundle
       shell: bash
       working-directory: migrations
-      run: |        
-        export PATH="$PATH:/home/runner/.dotnet/tools"        
+      run: |
+        export PATH="$PATH:/home/runner/.dotnet/tools"
         dotnet ef migrations bundle \
+          --verbose \
           --project "${{ github.workspace }}/${{ inputs.ef_project }}" \
           --startup-project "${{github.workspace}}/${{ inputs.ef_startup_project }}" \
           --output efbundle \
