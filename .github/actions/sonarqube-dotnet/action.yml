@@ -1,0 +1,214 @@
+name: SonarQube analysis (.NET)
+description: Run SonarQube analysis on a .NET project (Tailscale + GitHub Packages)
+author: CMZ-MTM
+
+inputs:
+  # ---- Project identity (SonarQube) ----
+  sonar_project_key:
+    description: SonarQube project key (technical identifier)
+    required: true
+
+  sonar_project_name:
+    description: SonarQube project name (UI only). Optional; if empty, only the key is used.
+    required: false
+    default: ""
+
+  # ---- Build/test target ----
+  solution_path:
+    description: Path to the .sln file (e.g. src/MyProject.sln)
+    required: true
+
+  dotnet_version:
+    description: .NET SDK version (e.g. 10.x)
+    required: false
+    default: "10.x"
+
+  # ---- Coverage ----
+  opencover_reports_paths:
+    description: Glob for OpenCover reports
+    required: false
+    default: "**/coverage.opencover.xml"
+
+  # ---- Tailscale ----
+  tailscale_authkey:
+    description: Tailscale auth key (tagged key for CI, e.g. tag:ci)
+    required: true
+
+  # ---- SonarQube ----
+  sonarqube_host_url:
+    description: SonarQube URL (include protocol + port, e.g. http://sonar:8002)
+    required: true
+  sonarqube_token:
+    description: SonarQube token
+    required: true
+
+  # ---- GitHub Packages (NuGet) ----
+  package_user:
+    description: GitHub Packages username
+    required: true
+  package_read_token:
+    description: GitHub Packages token (read:packages + repo if private)
+    required: true
+
+  nuget_source_name:
+    description: NuGet source name to add/remove (must match your repo convention)
+    required: false
+    default: "CMZ-MTM"
+  nuget_source_url:
+    description: GitHub Packages NuGet feed URL
+    required: false
+    default: "https://nuget.pkg.github.com/cmz-mtm/index.json"
+  nuget_config_file:
+    description: NuGet.Config file to modify (repo-relative)
+    required: false
+    default: "NuGet.Config"
+
+runs:
+  using: composite
+  steps:
+    # --------------------------------------------------
+    # Validate required inputs
+    # - Composite actions cannot declare "required secrets"
+    # - This fails fast with clear errors if something is missing
+    # --------------------------------------------------
+    - name: Validate required inputs
+      shell: bash
+      env:
+        TAILSCALE_AUTHKEY: ${{ inputs.tailscale_authkey }}
+        SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+        SONAR_TOKEN: ${{ inputs.sonarqube_token }}
+        PACKAGE_USER: ${{ inputs.package_user }}
+        PACKAGE_READ: ${{ inputs.package_read_token }}
+      run: |
+        fail=false
+
+        check() {
+          name="$1"
+          value="$2"
+          if [ -z "$value" ]; then
+            echo "::error::Missing required input: $name"
+            fail=true
+          fi
+        }
+
+        check "tailscale_authkey" "$TAILSCALE_AUTHKEY"
+        check "sonarqube_host_url" "$SONAR_HOST_URL"
+        check "sonarqube_token" "$SONAR_TOKEN"
+        check "package_user" "$PACKAGE_USER"
+        check "package_read_token" "$PACKAGE_READ"
+
+        if [ "$fail" = true ]; then
+          exit 1
+        fi
+
+    # --------------------------------------------------
+    # Checkout source code
+    # - fetch-depth: 0 required by SonarQube for blame/history
+    # --------------------------------------------------
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # --------------------------------------------------
+    # Private network access (Tailscale)
+    # --------------------------------------------------
+    - name: Connect Tailscale
+      uses: tailscale/github-action@v4
+      with:
+        authkey: ${{ inputs.tailscale_authkey }}
+        args: >-
+          --hostname=gh-sonarqube-${{ github.event.repository.name }}-${{ github.run_id }}
+
+    # --------------------------------------------------
+    # .NET SDK installation
+    # --------------------------------------------------
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ inputs.dotnet_version }}
+
+    # --------------------------------------------------
+    # Install SonarScanner for .NET (global tool)
+    # --------------------------------------------------
+    - name: Install SonarScanner for .NET
+      shell: bash
+      run: |
+        dotnet tool install --global dotnet-sonarscanner
+        echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+    # --------------------------------------------------
+    # SonarQube: begin analysis
+    # - Must run BEFORE build/test
+    # - Uses bash array to handle spaces in project name safely
+    # --------------------------------------------------
+    - name: Sonar Begin
+      shell: bash
+      env:
+        SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+        SONAR_TOKEN: ${{ inputs.sonarqube_token }}
+        PROJECT_KEY: ${{ inputs.sonar_project_key }}
+        PROJECT_NAME: ${{ inputs.sonar_project_name }}
+        OPENCOVER_PATHS: ${{ inputs.opencover_reports_paths }}
+      run: |
+        args=(/k:"$PROJECT_KEY")
+
+        if [ -n "$PROJECT_NAME" ]; then
+          args+=(/n:"$PROJECT_NAME")
+        fi
+
+        args+=(/d:sonar.host.url="$SONAR_HOST_URL")
+        args+=(/d:sonar.token="$SONAR_TOKEN")
+        args+=(/d:sonar.cs.opencover.reportsPaths="$OPENCOVER_PATHS")
+
+        dotnet sonarscanner begin "${args[@]}"
+
+    # --------------------------------------------------
+    # NuGet authentication (GitHub Packages)
+    # - Reuses repo NuGet.Config
+    # --------------------------------------------------
+    - name: Configure NuGet Authentication
+      shell: bash
+      env:
+        NUGET_USER: ${{ inputs.package_user }}
+        NUGET_TOKEN: ${{ inputs.package_read_token }}
+        SOURCE_NAME: ${{ inputs.nuget_source_name }}
+        SOURCE_URL: ${{ inputs.nuget_source_url }}
+        CONFIG_FILE: ${{ inputs.nuget_config_file }}
+      run: |
+        dotnet nuget remove source "$SOURCE_NAME" --configfile "$CONFIG_FILE" || true
+        dotnet nuget add source "$SOURCE_URL" \
+          --name "$SOURCE_NAME" \
+          --username "$NUGET_USER" \
+          --password "$NUGET_TOKEN" \
+          --store-password-in-clear-text \
+          --configfile "$CONFIG_FILE"
+
+    # --------------------------------------------------
+    # Build (restore happens implicitly)
+    # --------------------------------------------------
+    - name: Build
+      shell: bash
+      run: dotnet build "${{ inputs.solution_path }}" --configuration Release
+
+    # --------------------------------------------------
+    # Tests + coverage (OpenCover)
+    # --------------------------------------------------
+    - name: Run Unit Tests
+      shell: bash
+      run: |
+        dotnet test "${{ inputs.solution_path }}" \
+          --no-build \
+          --configuration Release \
+          /p:CollectCoverage=true \
+          /p:CoverletOutputFormat=opencover \
+          /p:CoverletOutput=./TestResults/coverage.opencover.xml
+
+    # --------------------------------------------------
+    # SonarQube: end analysis (uploads results)
+    # --------------------------------------------------
+    - name: Sonar End
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonarqube_token }}
+      run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
