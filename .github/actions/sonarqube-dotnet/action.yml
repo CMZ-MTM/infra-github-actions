@@ -117,8 +117,6 @@ runs:
       uses: tailscale/github-action@v4
       with:
         authkey: ${{ inputs.tailscale_authkey }}
-        args: >-
-          --hostname=gh-sonarqube-${{ github.event.repository.name }}-${{ github.run_id }}
 
     # --------------------------------------------------
     # .NET SDK installation
