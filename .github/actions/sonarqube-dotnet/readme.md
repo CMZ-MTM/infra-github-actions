@@ -18,6 +18,7 @@ against a **self-hosted SonarQube instance** reachable via **Tailscale**.
 
 In the consuming repository, create a workflow like:
 
+
 ```yaml
 name: SonarQube analysis
 
@@ -28,63 +29,81 @@ on:
 
 jobs:
   sonar:
-    uses: CMZ-MTM/infra-github-actions/.github/workflows/sonar-dotnet.yml@v1
-    with:
-      project-key: translations-backend
-      project-name: "Translations Backend"
-      solution-path: src/TranslationsBackend.API.sln
-    secrets:
-      SONARQUBE_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-      SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-      PACKAGE_USER: ${{ secrets.PACKAGE_USER }}
-      PACKAGE_READ: ${{ secrets.PACKAGE_READ }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: SonarQube analysis (.NET)
+        uses: CMZ-MTM/infra-github-actions/.github/actions/sonarqube-dotnet@v1
+        with:
+          # Project identity (SonarQube)
+          sonar_project_key: translations-backend
+          sonar_project_name: "Translations Backend"   # optional
+
+          # Build/test target
+          solution_path: src/TranslationsBackend.API.sln
+          dotnet_version: "10.x"                       # optional
+
+          # Coverage (optional)
+          opencover_reports_paths: "**/coverage.opencover.xml"
+
+          # Secrets are passed as inputs (caller decides secret names)
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          sonarqube_host_url: ${{ secrets.SONARQUBE_HOST_URL }}
+          sonarqube_token: ${{ secrets.SONARQUBE_TOKEN }}
+          package_user: ${{ secrets.PACKAGE_USER }}
+          package_read_token: ${{ secrets.PACKAGE_READ }}
 ```
 
 ---
 
 ## 🔧 Inputs
 
-| Name                   | Required | Description                                  |
-| ---------------------- | -------- | -------------------------------------------- |
-| `project-key`          | ✅        | SonarQube project key (technical identifier) |
-| `project-name`         | ❌        | SonarQube project display name               |
-| `solution-path`        | ✅        | Path to the `.sln` file                      |
-| `dotnet-version`       | ❌        | .NET SDK version (default: `10.x`)           |
-| `sonar-opencover-path` | ❌        | Glob path for OpenCover reports              |
+| Name                      | Required | Description                                                                                 |
+| ------------------------- | :------: | ------------------------------------------------------------------------------------------- |
+| `sonar_project_key`       |    ✅     | SonarQube project key (technical identifier)                                                |
+| `sonar_project_name`      |    ❌     | SonarQube project name (UI only)                                                            |
+| `solution_path`           |    ✅     | Path to the `.sln` file                                                                     |
+| `dotnet_version`          |    ❌     | .NET SDK version (default: `10.x`)                                                          |
+| `opencover_reports_paths` |    ❌     | Glob for OpenCover reports (default: `**/coverage.opencover.xml`)                           |
+| `tailscale_authkey`       |    ✅     | Tailscale auth key (tagged for CI, e.g. `tag:ci`)                                           |
+| `sonarqube_host_url`      |    ✅     | SonarQube URL (include protocol + port, e.g. `http://sonar:8002`)                           |
+| `sonarqube_token`         |    ✅     | SonarQube token                                                                             |
+| `package_user`            |    ✅     | GitHub Packages username                                                                    |
+| `package_read_token`      |    ✅     | GitHub Packages token (`read:packages` + `repo` if private repos/packages)                  |
+| `nuget_source_name`       |    ❌     | NuGet source name to add/remove (default: `CMZ-MTM`)                                        |
+| `nuget_source_url`        |    ❌     | GitHub Packages NuGet feed URL (default: `https://nuget.pkg.github.com/cmz-mtm/index.json`) |
+| `nuget_config_file`       |    ❌     | NuGet.Config file to modify (repo-relative, default: `NuGet.Config`)                        |
 
 ---
 
-## 🔐 Required Secrets
+## 🔐 Secrets
 
-### SonarQube
+This action is designed to work even when the infra repository is **public**.
 
-| Scope | Secret               | Description                                      |
-| ----- | -------------------- | ------------------------------------------------ |
-| Org   | `SONARQUBE_HOST_URL` | Full SonarQube URL (including protocol and port) |
-| Org   | `SONARQUBE_TOKEN`    | SonarQube analysis token                         |
+Secrets are **not** accessed directly inside the action. Instead, you pass secrets
+from the consuming repository using the `with:` inputs:
 
-### Tailscale
+```yaml
+with:
+  tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+  sonarqube_host_url: ${{ secrets.SONARQUBE_HOST_URL }}
+  sonarqube_token: ${{ secrets.SONARQUBE_TOKEN }}
+  package_user: ${{ secrets.PACKAGE_USER }}
+  package_read_token: ${{ secrets.PACKAGE_READ }}
+```
 
-| Scope | Secret              | Description                |
-| ----- | ------------------- | -------------------------- |
-| Org   | `TAILSCALE_AUTHKEY` | Tagged auth key (`tag:ci`) |
-
-> ⚠️ Auth keys are currently supported.  
-> OAuth clients may be adopted in the future.
-
-### GitHub Packages (NuGet)
-
-| Scope | Secret         | Description                                      |
-| ----- | -------------- | ------------------------------------------------ |
-| Org   | `PACKAGE_USER` | GitHub username                                  |
-| Org   | `PACKAGE_READ` | Token with `read:packages` (+ `repo` if private) |
+This lets each repository:
+- use its own secret naming convention
+- keep secrets scoped to the consuming repo/org
+- keep the infra repo public
 
 ---
 
 ## 📊 Test Coverage
 
 > 🚧🚧 WORK IN PROGRESS 🚧🚧
+
+Coverage is generated using Coverlet in OpenCover format and can be imported by SonarQube
+if the report paths match your repository layout.
 
 ---
 
@@ -103,7 +122,7 @@ This repository **uses versioned workflows**.
 
 ### Managing versions
 
-Versions are implemented using **Git tags** (recommended) or **long-lived branches**.
+Versions are implemented using **Git tags**.
 
 #### Create a new major version (example: v1)
 
