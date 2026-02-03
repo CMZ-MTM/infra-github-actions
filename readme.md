@@ -41,3 +41,94 @@ A centralized GitHub action that generates optimized Docker images for database 
 <a href="/.github/actions/build-migrations-container/README.md ">View Documentation</a>
 
 ---
+### `sonarqube-dotnet`
+
+A centralized GitHub action that runs SonarQube analysis for .NET projects using a self-hosted SonarQube instance over Tailscale, standardizing code quality checks across multiple repositories.
+
+<a href="/.github/actions/sonatqube-dotnet/README.md ">View Documentation</a>
+
+---
+### `sonarqube-react`
+
+A centralized GitHub action that runs SonarQube analysis for frontend (React/TypeScript) projects via a self-hosted SonarQube instance over Tailscale, providing consistent static code analysis across repositories.
+
+<a href="/.github/actions/sonatqube-react/README.md ">View Documentation</a>
+
+---
+
+
+
+## 🔁 Versioning Strategy
+
+This repository **uses versioned workflows**.
+
+### Version tags
+- `v1` → Stable, backwards-compatible
+- `v2` → Breaking changes
+
+### Rules
+- Bug fixes and non-breaking improvements update the same major version
+- Breaking changes require a new major version
+- Consuming repositories must explicitly opt-in to upgrades
+
+### Managing versions
+
+Versions are implemented using **Git tags**.
+
+#### Create a new major version (example: v1)
+
+```bash
+git checkout master
+git pull
+git tag v1
+git push origin v1
+```
+
+This creates a stable entry point that consuming repositories can reference:
+
+```yaml
+uses: CMZ-MTM/infra-github-actions/.github/workflows/sonar-dotnet.yml@v1
+```
+
+#### Update an existing major version (non-breaking changes)
+
+If you add bug fixes or backwards-compatible improvements:
+
+```bash
+git checkout master
+git pull
+git tag -f v1
+git push origin v1 --force
+```
+
+⚠️ This intentionally moves the `v1` tag forward. Only do this for non-breaking changes.
+
+#### Create a new breaking version (example: v2)
+
+When introducing breaking changes (inputs, behavior, secrets):
+
+```bash
+git checkout master
+git pull
+git tag v2
+git push origin v2
+```
+
+Consuming repositories must explicitly opt in:
+
+```yaml
+uses: CMZ-MTM/infra-github-actions/.github/workflows/sonar-dotnet.yml@v2
+```
+
+#### Delete a version (if necessary)
+
+If a version tag was created by mistake:
+
+```bash
+git tag -d v1
+git push origin :refs/tags/v1
+```
+
+⚠️ Deleting tags can break consumers. Only do this if you are certain no repositories depend on it.
+
+---
