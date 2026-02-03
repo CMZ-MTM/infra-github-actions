@@ -104,8 +104,8 @@ runs:
     - name: Install SonarScanner
       shell: bash
       run: |
-        curl -sSL -o sonar-scanner.zip \
-          https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-latest-linux-x64.zip
+        curl -sSLo sonar-scanner.zip \
+          https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.0.1.6346-linux-x64.zip
 
         unzip -q sonar-scanner.zip
         echo "$PWD/sonar-scanner-*/bin" >> "$GITHUB_PATH"
