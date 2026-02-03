@@ -45,14 +45,14 @@ A centralized GitHub action that generates optimized Docker images for database 
 
 A centralized GitHub action that runs SonarQube analysis for .NET projects using a self-hosted SonarQube instance over Tailscale, standardizing code quality checks across multiple repositories.
 
-<a href="/.github/actions/sonatqube-dotnet/README.md ">View Documentation</a>
+<a href="/.github/actions/sonarqube-dotnet/README.md ">View Documentation</a>
 
 ---
 ### `sonarqube-react`
 
 A centralized GitHub action that runs SonarQube analysis for frontend (React/TypeScript) projects via a self-hosted SonarQube instance over Tailscale, providing consistent static code analysis across repositories.
 
-<a href="/.github/actions/sonatqube-react/README.md ">View Documentation</a>
+<a href="/.github/actions/sonarqube-react/README.md ">View Documentation</a>
 
 ---
 
