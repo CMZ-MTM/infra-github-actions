@@ -136,6 +136,14 @@ runs:
         echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
     # --------------------------------------------------
+    # Install GitVersion
+    # --------------------------------------------------
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v4
+      with:
+        versionSpec: '6.x'
+
+    # --------------------------------------------------
     # SonarQube: begin analysis
     # - Must run BEFORE build/test
     # - Uses bash array to handle spaces in project name safely
@@ -148,6 +156,7 @@ runs:
         PROJECT_KEY: ${{ inputs.sonar_project_key }}
         PROJECT_NAME: ${{ inputs.sonar_project_name }}
         OPENCOVER_PATHS: ${{ inputs.opencover_reports_paths }}
+        VERSION: ${{ steps.gitversion.outputs.MajorMinorPatch }}
       run: |
         args=(/k:"$PROJECT_KEY")
 
@@ -158,6 +167,7 @@ runs:
         args+=(/d:sonar.host.url="$SONAR_HOST_URL")
         args+=(/d:sonar.token="$SONAR_TOKEN")
         args+=(/d:sonar.cs.opencover.reportsPaths="$OPENCOVER_PATHS")
+        args+=(/v:$VERSION)
 
         dotnet sonarscanner begin "${args[@]}"
 
