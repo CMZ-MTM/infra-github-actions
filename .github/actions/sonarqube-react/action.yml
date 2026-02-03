@@ -104,12 +104,24 @@ runs:
     - name: Install SonarScanner
       shell: bash
       run: |
+        set -e
+
+        SCANNER_VERSION=8.0.1.6346
+        SCANNER_DIR="$HOME/sonar-scanner"
+
         curl -sSLo sonar-scanner.zip \
-          https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.0.1.6346-linux-x64.zip
+          https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SCANNER_VERSION}-linux-x64.zip
 
         unzip -q sonar-scanner.zip
-        echo "$PWD/sonar-scanner-*/bin" >> "$GITHUB_PATH"
+        mv sonar-scanner-${SCANNER_VERSION}-linux-x64 "$SCANNER_DIR"
 
+        echo "$SCANNER_DIR/bin" >> "$GITHUB_PATH"
+
+    - name: Verify SonarScanner
+      shell: bash
+      run: |
+        which sonar-scanner
+        sonar-scanner --version
 
     # --------------------------------------------------
     # SonarQube Scan (no build, no tests)
