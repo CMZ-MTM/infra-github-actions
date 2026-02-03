@@ -134,7 +134,6 @@ runs:
         PROJECT_KEY: ${{ inputs.sonar_project_key }}
         PROJECT_NAME: ${{ inputs.sonar_project_name }}
         BASE_DIR: ${{ inputs.project_base_dir }}
-        BRANCH_NAME: ${{ github.ref_name }}
       run: |
         args=(
           "-Dsonar.projectKey=$PROJECT_KEY"
