@@ -27,7 +27,7 @@ inputs:
   opencover_reports_paths:
     description: Glob for OpenCover reports
     required: false
-    default: "**/coverage.opencover.xml"
+    default: "**/TestResults/coverage/*.opencover.xml"
 
   # ---- Tailscale ----
   tailscale_authkey:
@@ -187,7 +187,7 @@ runs:
     # --------------------------------------------------
     - name: Build
       shell: bash
-      run: dotnet build "${{ inputs.solution_path }}" --configuration Release
+      run: dotnet build "${{ inputs.solution_path }}" --configuration Debug
 
     # --------------------------------------------------
     # Tests + coverage (OpenCover)
@@ -197,10 +197,10 @@ runs:
       run: |
         dotnet test "${{ inputs.solution_path }}" \
           --no-build \
-          --configuration Release \
+          --configuration Debug \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./TestResults/coverage.opencover.xml
+          /p:CoverletOutput=./TestResults/coverage
 
     # --------------------------------------------------
     # SonarQube: end analysis (uploads results)
