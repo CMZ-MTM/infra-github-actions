@@ -54,6 +54,7 @@ runs:
         SONAR_TOKEN: ${{ inputs.sonarqube_token }}
       run: |
         fail=false
+
         check() {
           name="$1"
           value="$2"
@@ -68,10 +69,13 @@ runs:
         check "sonarqube_host_url" "$SONAR_HOST_URL"
         check "sonarqube_token" "$SONAR_TOKEN"
 
-        if [ "$fail" = true ]; then exit 1; fi
+        if [ "$fail" = true ]; then
+          exit 1
+        fi
 
     # --------------------------------------------------
-    # Checkout (fetch-depth: 0 for blame/history)
+    # Checkout source code
+    # - fetch-depth: 0 required for blame/history
     # --------------------------------------------------
     - name: Checkout
       uses: actions/checkout@v4
@@ -98,12 +102,23 @@ runs:
     # SonarQube Scan (no build, no tests)
     # --------------------------------------------------
     - name: SonarQube Scan
-      uses: SonarSource/sonarqube-scan-action@v7
+      shell: bash
       env:
         SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
         SONAR_TOKEN: ${{ inputs.sonarqube_token }}
-      with:
-        projectBaseDir: ${{ inputs.project_base_dir }}
-        args: >
-          -Dsonar.projectKey=${{ inputs.sonar_project_key }}
-          -Dsonar.projectName=${{ inputs.sonar_project_name }}
+        PROJECT_KEY: ${{ inputs.sonar_project_key }}
+        PROJECT_NAME: ${{ inputs.sonar_project_name }}
+        BASE_DIR: ${{ inputs.project_base_dir }}
+      run: |
+        args=(
+          "-Dsonar.projectKey=$PROJECT_KEY"
+          "-Dsonar.projectBaseDir=$BASE_DIR"
+          "-Dsonar.host.url=$SONAR_HOST_URL"
+          "-Dsonar.token=$SONAR_TOKEN"
+        )
+
+        if [ -n "$PROJECT_NAME" ]; then
+          args+=("-Dsonar.projectName=$PROJECT_NAME")
+        fi
+
+        sonar-scanner "${args[@]}"
