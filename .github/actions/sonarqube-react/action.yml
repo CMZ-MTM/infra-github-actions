@@ -99,6 +99,19 @@ runs:
         node-version: ${{ inputs.node_version }}
 
     # --------------------------------------------------
+    # Install SonarScanner CLI
+    # --------------------------------------------------
+    - name: Install SonarScanner
+      shell: bash
+      run: |
+        SONAR_SCANNER_VERSION=latest
+        curl -sSLo sonar-scanner.zip \
+          https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux-x64.zip
+
+        unzip -q sonar-scanner.zip
+        echo "$PWD/sonar-scanner-$SONAR_SCANNER_VERSION-linux-x64/bin" >> $GITHUB_PATH
+
+    # --------------------------------------------------
     # SonarQube Scan (no build, no tests)
     # --------------------------------------------------
     - name: SonarQube Scan
