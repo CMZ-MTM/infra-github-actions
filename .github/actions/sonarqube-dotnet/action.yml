@@ -27,7 +27,7 @@ inputs:
   opencover_reports_paths:
     description: Glob for OpenCover reports
     required: false
-    default: "**/TestResults/coverage/*.opencover.xml"
+    default: "**/TestResults/coverage/**/*.opencover.xml"
 
   # ---- Tailscale ----
   tailscale_authkey:
@@ -200,7 +200,7 @@ runs:
           --configuration Debug \
           /p:CollectCoverage=true \
           /p:CoverletOutputFormat=opencover \
-          /p:CoverletOutput=./TestResults/coverage
+          /p:CoverletOutput=./TestResults/coverage/
 
     # --------------------------------------------------
     # SonarQube: end analysis (uploads results)
