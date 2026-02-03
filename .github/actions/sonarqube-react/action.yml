@@ -1,0 +1,109 @@
+name: SonarQube analysis (Frontend)
+description: Run SonarQube analysis on a frontend project (Tailscale)
+author: CMZ-MTM
+
+inputs:
+  # ---- Project identity (SonarQube) ----
+  sonar_project_key:
+    description: SonarQube project key (technical identifier)
+    required: true
+
+  sonar_project_name:
+    description: SonarQube project name (UI only). Optional.
+    required: false
+    default: ""
+
+  # ---- Repo structure ----
+  project_base_dir:
+    description: Directory to run the scan from (repo-relative)
+    required: false
+    default: "."
+
+  # ---- Runtime ----
+  node_version:
+    description: Node.js version (e.g. 20.x)
+    required: false
+    default: "20.x"
+
+  # ---- Tailscale ----
+  tailscale_authkey:
+    description: Tailscale auth key (tagged key for CI, e.g. tag:ci)
+    required: true
+
+  # ---- SonarQube ----
+  sonarqube_host_url:
+    description: SonarQube URL (include protocol + port)
+    required: true
+
+  sonarqube_token:
+    description: SonarQube token
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # --------------------------------------------------
+    # Validate required inputs
+    # --------------------------------------------------
+    - name: Validate required inputs
+      shell: bash
+      env:
+        PROJECT_KEY: ${{ inputs.sonar_project_key }}
+        TAILSCALE_AUTHKEY: ${{ inputs.tailscale_authkey }}
+        SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+        SONAR_TOKEN: ${{ inputs.sonarqube_token }}
+      run: |
+        fail=false
+        check() {
+          name="$1"
+          value="$2"
+          if [ -z "$value" ]; then
+            echo "::error::Missing required input: $name"
+            fail=true
+          fi
+        }
+
+        check "sonar_project_key" "$PROJECT_KEY"
+        check "tailscale_authkey" "$TAILSCALE_AUTHKEY"
+        check "sonarqube_host_url" "$SONAR_HOST_URL"
+        check "sonarqube_token" "$SONAR_TOKEN"
+
+        if [ "$fail" = true ]; then exit 1; fi
+
+    # --------------------------------------------------
+    # Checkout (fetch-depth: 0 for blame/history)
+    # --------------------------------------------------
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # --------------------------------------------------
+    # Private network access (Tailscale)
+    # --------------------------------------------------
+    - name: Connect Tailscale
+      uses: tailscale/github-action@v4
+      with:
+        authkey: ${{ inputs.tailscale_authkey }}
+
+    # --------------------------------------------------
+    # Node.js setup
+    # --------------------------------------------------
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    # --------------------------------------------------
+    # SonarQube Scan (no build, no tests)
+    # --------------------------------------------------
+    - name: SonarQube Scan
+      uses: SonarSource/sonarqube-scan-action@v7
+      env:
+        SONAR_HOST_URL: ${{ inputs.sonarqube_host_url }}
+        SONAR_TOKEN: ${{ inputs.sonarqube_token }}
+      with:
+        projectBaseDir: ${{ inputs.project_base_dir }}
+        args: >
+          -Dsonar.projectKey=${{ inputs.sonar_project_key }}
+          -Dsonar.projectName=${{ inputs.sonar_project_name }}
