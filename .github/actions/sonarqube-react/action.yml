@@ -142,8 +142,13 @@ runs:
           "-Dsonar.token=$SONAR_TOKEN"
         )
 
+        # Exclude Capacitor / native artifacts
+        args+=("-Dsonar.exclusions=android/**,ios/**,**/*.java,**/*.kt,**/*.gradle,**/build/**,**/.gradle/**")
+
+        # Add project name if provided
         if [ -n "$PROJECT_NAME" ]; then
           args+=("-Dsonar.projectName=$PROJECT_NAME")
         fi
 
+        # Run SonarScanner
         sonar-scanner "${args[@]}"
