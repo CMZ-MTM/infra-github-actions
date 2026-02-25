@@ -25,6 +25,12 @@ A centralized GitHub Actions workflow that securely deploys applications via Tai
 
 ---
 
+### `docsearch-reindex.yml`
+
+A workflow that reindexes Typesense DocSearch data by running the remote scraper over Tailscale, either manually via `workflow_dispatch` (with `site_name`) or automatically after a successful `Deploy` workflow run.
+
+---
+
 ## 🏗️ Current Actions
 
 ### `build-backend-container`
@@ -53,6 +59,14 @@ A centralized GitHub action that runs SonarQube analysis for .NET projects using
 A centralized GitHub action that runs SonarQube analysis for frontend (React/TypeScript) projects via a self-hosted SonarQube instance over Tailscale, providing consistent static code analysis across repositories.
 
 <a href="/.github/actions/sonarqube-react/README.md ">View Documentation</a>
+
+---
+
+### `typesense-docsearch-reindex`
+
+A centralized GitHub action that connects over Tailscale and runs the remote Typesense DocSearch reindex scripts for a selected site config.
+
+<a href="/.github/actions/typesense-docsearch-reindex/README.md ">View Documentation</a>
 
 ---
 
