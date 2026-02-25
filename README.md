@@ -92,7 +92,7 @@ Versions are implemented using **Git tags**.
 #### Create a new major version (example: v1)
 
 ```bash
-git checkout master
+git checkout dev
 git pull
 git tag v1
 git push origin v1
@@ -109,7 +109,7 @@ uses: CMZ-MTM/infra-github-actions/.github/workflows/sonar-dotnet.yml@v1
 If you add bug fixes or backwards-compatible improvements:
 
 ```bash
-git checkout master
+git checkout dev
 git pull
 git tag -f v1
 git push origin v1 --force
@@ -122,7 +122,7 @@ git push origin v1 --force
 When introducing breaking changes (inputs, behavior, secrets):
 
 ```bash
-git checkout master
+git checkout dev
 git pull
 git tag v2
 git push origin v2

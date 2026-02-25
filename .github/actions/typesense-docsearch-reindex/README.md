@@ -5,7 +5,7 @@ Reusable GitHub Action that connects to Tailnet and runs the remote Typesense sc
 ## Usage
 
 ```yaml
-name: Typesense DocSearch Reindex
+name: DocSearch Reindex
 
 on:
   workflow_dispatch:
