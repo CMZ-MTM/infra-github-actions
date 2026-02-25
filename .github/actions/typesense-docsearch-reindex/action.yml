@@ -1,0 +1,90 @@
+name: Typesense DocSearch Reindex
+description: "Reindex a Typesense DocSearch site by connecting to Tailnet and running remote scraper scripts."
+author: CMZ-MTM
+
+inputs:
+  tailscale_authkey:
+    description: Tailscale auth key used to join the tailnet.
+    required: true
+
+  typesense_server:
+    description: Typesense server hostname reachable via Tailscale.
+    required: true
+
+  typesense_api_key:
+    description: Typesense API key exported on the remote server.
+    required: true
+
+  mycmz_api_key:
+    description: MYCMZ API key exported on the remote server.
+    required: true
+
+  mycmz_api_secret:
+    description: MYCMZ API secret exported on the remote server.
+    required: true
+
+  site_name:
+    description: Site config name in scraper-native/configs (without .json).
+    required: false
+    default: docs-icon-manuals
+
+runs:
+  using: composite
+  steps:
+    - name: Validate required inputs
+      shell: bash
+      env:
+        TS_AUTHKEY: ${{ inputs.tailscale_authkey }}
+        TYPESENSE_SERVER: ${{ inputs.typesense_server }}
+        TYPESENSE_API_KEY: ${{ inputs.typesense_api_key }}
+        MYCMZ_API_KEY: ${{ inputs.mycmz_api_key }}
+        MYCMZ_API_SECRET: ${{ inputs.mycmz_api_secret }}
+      run: |
+        set -euo pipefail
+
+        fail=false
+
+        check() {
+          name="$1"
+          value="$2"
+          if [ -z "$value" ]; then
+            echo "::error::Missing required input: $name"
+            fail=true
+          fi
+        }
+
+        check "tailscale_authkey" "$TS_AUTHKEY"
+        check "typesense_server" "$TYPESENSE_SERVER"
+        check "typesense_api_key" "$TYPESENSE_API_KEY"
+        check "mycmz_api_key" "$MYCMZ_API_KEY"
+        check "mycmz_api_secret" "$MYCMZ_API_SECRET"
+
+        if [ "$fail" = true ]; then
+          exit 1
+        fi
+
+    - name: Connect to Tailnet
+      uses: tailscale/github-action@v3
+      with:
+        authkey: ${{ inputs.tailscale_authkey }}
+
+    - name: Run scraper and status on typesense server
+      shell: bash
+      env:
+        TYPESENSE_SERVER: ${{ inputs.typesense_server }}
+        TYPESENSE_API_KEY: ${{ inputs.typesense_api_key }}
+        MYCMZ_API_KEY: ${{ inputs.mycmz_api_key }}
+        MYCMZ_API_SECRET: ${{ inputs.mycmz_api_secret }}
+        SITE_NAME: ${{ inputs.site_name }}
+      run: |
+        set -euo pipefail
+
+        tailscale ssh "deploy@${TYPESENSE_SERVER}" "
+          set -euo pipefail
+          cd /srv/apps/infra-${TYPESENSE_SERVER}/typesense
+          export TYPESENSE_API_KEY='${TYPESENSE_API_KEY}'
+          export MYCMZ_API_KEY='${MYCMZ_API_KEY}'
+          export MYCMZ_API_SECRET='${MYCMZ_API_SECRET}'
+          bash scraper-native/reindex.sh '${SITE_NAME}'
+          bash utils/status.sh
+        "
