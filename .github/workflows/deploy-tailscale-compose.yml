@@ -38,7 +38,7 @@ jobs:
           DEPLOY_USER_VAR: ${{ vars.DEPLOY_USER }}
           APPS_ROOT_VAR: ${{ vars.DEPLOY_APPS_ROOT }}
 
-          # 👇 PRIORIDAD: input > var
+          # PRIORIDAD: input > var
           MIGRATIONS_NEEDED_VAR: ${{ inputs.migrations_needed || vars.DEPLOY_MIGRATIONS_NEEDED }}
           MIGRATIONS_NAME_VAR: ${{ vars.DEPLOY_MIGRATIONS_CONTAINER_NAME }}
 
