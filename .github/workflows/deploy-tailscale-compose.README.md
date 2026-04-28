@@ -44,6 +44,14 @@ The following secrets need to be declared when calling the workflow.
 ## 🌳 Variables
 
 Though not passed directly to the workflow as inputs or secrets, the following variables need to be on the repository for the workflow to work.
+In addition, there are two optional variables:
+
+#### Custom install path
+Allows using a differently named folder for the same application. This is useful when managing multiple deployments of the same service on a single server, avoiding conflicts between instances.
+
+#### Migration override flag (migrations_needed)
+Allows disabling migrations for a specific deployment, even if the repository-level variable (DEPLOY_MIGRATIONS_NEEDED) is set to 'yes'.
+This is useful when you need fine-grained control, ensuring that migrations are skipped only for a particular workflow execution without affecting other deployments.
 
 ### ✅ Required
 
