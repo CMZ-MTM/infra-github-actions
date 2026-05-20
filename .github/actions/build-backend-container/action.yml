@@ -27,7 +27,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -53,7 +53,7 @@ runs:
           fi
 
     - name: Setup .NET SDK
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: '10.x'
 
@@ -85,7 +85,7 @@ runs:
 
     - name: Build and Push Image (Test)
       if: github.ref == 'refs/heads/test'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./build
         file: ${{github.workspace}}/DockerBuild
@@ -96,7 +96,7 @@ runs:
 
     - name: Build and Push Image (Master)
       if: github.ref == 'refs/heads/master'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./build
         file: ${{github.workspace}}/DockerBuild
@@ -107,7 +107,7 @@ runs:
           
     - name: Build and Push Image (Dev)
       if: github.ref == 'refs/heads/dev'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./build
         file: ${{github.workspace}}/DockerBuild
