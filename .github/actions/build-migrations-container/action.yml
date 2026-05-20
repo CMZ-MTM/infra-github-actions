@@ -33,7 +33,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -59,13 +59,13 @@ runs:
           fi
 
     - name: Setup .NET SDK
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: '10.x'
 
     - name: Setup Ef Core Tools
       shell: bash
-      run: dotnet tool install dotnet-ef --version 10.0.1 --global
+      run: dotnet tool install dotnet-ef --version 10.0.8 --global
 
     - name: Login to GHCR
       uses: docker/login-action@v3
@@ -104,7 +104,7 @@ runs:
 
     - name: Build and Push Migration Image (Test)
       if: github.ref == 'refs/heads/test'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./migrations
         file: ${{github.workspace}}/migrations/Dockerfile
@@ -115,7 +115,7 @@ runs:
 
     - name: Build and Push Migration Image (Master)
       if: github.ref == 'refs/heads/master'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./migrations
         file: ${{github.workspace}}/migrations/Dockerfile
@@ -126,7 +126,7 @@ runs:
           
     - name: Build and Push Migration Image (Dev)
       if: github.ref == 'refs/heads/dev'
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v7
       with:
         context: ./migrations
         file: ${{github.workspace}}/migrations/Dockerfile
