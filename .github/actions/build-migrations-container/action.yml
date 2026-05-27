@@ -29,6 +29,9 @@ inputs:
   ef_startup_project:
     description: "EF Startup Project"
     required: true
+  ef_context:
+    description: "Optional EF DbContext name"
+    required: false
 
 runs:
   using: "composite"
@@ -93,14 +96,25 @@ runs:
       shell: bash
       working-directory: migrations
       run: |
+        set -euo pipefail
         export PATH="$PATH:/home/runner/.dotnet/tools"
-        dotnet ef migrations bundle \
-          --verbose \
-          --project "${{ github.workspace }}/${{ inputs.ef_project }}" \
-          --startup-project "${{github.workspace}}/${{ inputs.ef_startup_project }}" \
-          --output efbundle \
-          --self-contained \
+        EF_CONTEXT="${{ inputs.ef_context }}"
+
+        dotnet_ef_args=(
+          migrations bundle
+          --verbose
+          --project "${{ github.workspace }}/${{ inputs.ef_project }}"
+          --startup-project "${{github.workspace}}/${{ inputs.ef_startup_project }}"
+          --output efbundle
+          --self-contained
           --target-runtime linux-x64
+        )
+
+        if [[ -n "$EF_CONTEXT" ]]; then
+          dotnet_ef_args+=(--context "$EF_CONTEXT")
+        fi
+
+        dotnet ef "${dotnet_ef_args[@]}"
 
     - name: Build and Push Migration Image (Test)
       if: github.ref == 'refs/heads/test'
