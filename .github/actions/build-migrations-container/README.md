@@ -18,5 +18,6 @@ In your workflow, you can use this action as follows:
     container_name: identity-migrations
     ef_project: src/CMZ.IdentityService
     ef_startup_project: src/CMZ.IdentityService.Api
+    ef_context: ApplicationDbContext # optional
 
 ```
