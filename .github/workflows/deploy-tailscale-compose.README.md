@@ -14,7 +14,8 @@ Reusable GitHub Actions workflow for shipping Docker Compose apps over Tailscale
 - Resolves deployment config from GitHub variables (server, user, app root, migrations)
 - For prod, only allows actors listed in `DEPLOY_PROD_ALLOWED_ACTORS`
 - Installs + connects Tailscale on the runner using `TAILSCALE_AUTHKEY`
-- Optionally runs migrations via `docker compose` in `infra-${server}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}`
+- Optionally runs migrations via `docker compose` in `infra-${server}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}`,
+  **waits for the one-shot container to finish** and **fails the deployment** if it does not exit with code 0
 - Deploys the app via `docker compose pull && docker compose up -d` in `infra-${server}/${repo}`
 
 Target hosts must already have Docker + Docker Compose and the repo checked out at `${APPS_ROOT}/infra-${SERVER}/${REPO}`.
@@ -28,6 +29,9 @@ The following inputs need to be declared when calling the workflow.
 | Input        | Description                                   | Values     |
 |-------------|-----------------------------------------------|-------------|
 | environment | Deployment environment label                  | `prod` or `test`      |
+| app_name | Directory name on the server                  | defaults to the repo name |
+| migrations_needed | Per-call override of `DEPLOY_MIGRATIONS_NEEDED` | `yes` or `no` |
+| migrations_timeout_seconds | Max seconds to wait for the migrations container to finish | defaults to `900` |
 
 ---
 
@@ -71,6 +75,17 @@ Set these in the calling repository (or org-level where noted).
 |-------|----------|--------|-------|
 | Repo  | `DEPLOY_MIGRATIONS_NEEDED` | `yes`/`no` | Enables the migrations step |
 | Repo  | `DEPLOY_MIGRATIONS_CONTAINER_NAME` | string | Required when migrations are enabled (e.g. `myapp-migrations`) |
+
+The value is used both as the directory under `infra-${server}/` and as the container name the
+workflow waits on, so the compose service on the host must set a matching `container_name`.
+
+> ⚠️ The migrations service on the target host must be declared with `restart: "no"`.
+> It is a one-shot job: any restart policy re-runs the EF bundle in a loop and hides its real
+> exit code from the `docker wait` this workflow relies on.
+
+When migrations fail, the workflow prints the container logs, stops the container and aborts
+**before** the application is deployed, so the running application keeps matching the schema
+that is actually in the database.
 
 ### 🧰 Other (optional)
 

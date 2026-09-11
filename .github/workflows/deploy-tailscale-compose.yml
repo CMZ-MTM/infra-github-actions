@@ -18,6 +18,12 @@ on:
         required: false
         type: string
 
+      migrations_timeout_seconds:
+        description: "Max seconds to wait for the migrations container to finish"
+        required: false
+        type: number
+        default: 900
+
     secrets:
       TAILSCALE_AUTHKEY:
         required: true
@@ -25,6 +31,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       # 1) Resolve config from repo/org variables (simple) + validate
@@ -125,28 +132,62 @@ jobs:
             --hostname="github-deploy-${{ github.event.repository.name }}-${{ inputs.environment }}-${{ github.run_id }}" \
             --accept-dns=true
 
-      # 4) Migrations first (if enabled)
+      # 4) Migrations first (if enabled).
+      #    The migrations container is one-shot: it applies the EF bundle and exits. We wait
+      #    for it and propagate its exit code, so a failed migration fails the deployment
+      #    instead of letting step 5 publish an application against a stale schema.
       - name: Deploy migrations (optional)
+        env:
+          MIGRATIONS_TIMEOUT_SECONDS: ${{ inputs.migrations_timeout_seconds }}
         run: |
-          if [[ "$DEPLOY_MIGRATIONS_NEEDED" == "yes" || "$DEPLOY_MIGRATIONS_NEEDED" == "true" || "$DEPLOY_MIGRATIONS_NEEDED" == "1" ]]; then
-            BASE_DIR="${DEPLOY_APPS_ROOT}/infra-${DEPLOY_SERVER}"
-            MIG_DIR="${BASE_DIR}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}"
+          set -euo pipefail
 
-            echo "📦 Deploying migrations from: ${MIG_DIR}"
-
-            tailscale ssh "${DEPLOY_USER}@${DEPLOY_SERVER}" "
-              set -e
-              cd ${MIG_DIR}
-              docker compose pull
-              docker compose up -d
-            "
-          else
+          if [[ "$DEPLOY_MIGRATIONS_NEEDED" != "yes" && "$DEPLOY_MIGRATIONS_NEEDED" != "true" && "$DEPLOY_MIGRATIONS_NEEDED" != "1" ]]; then
             echo "ℹ️ Migrations not enabled. Skipping."
+            exit 0
           fi
+
+          MIG_DIR="${DEPLOY_APPS_ROOT}/infra-${DEPLOY_SERVER}/${DEPLOY_MIGRATIONS_CONTAINER_NAME}"
+          MIG_CONTAINER="${DEPLOY_MIGRATIONS_CONTAINER_NAME}"
+          SSH_TARGET="${DEPLOY_USER}@${DEPLOY_SERVER}"
+
+          echo "📦 Deploying migrations from: ${MIG_DIR}"
+
+          tailscale ssh "$SSH_TARGET" "
+            set -e
+            cd ${MIG_DIR}
+            docker compose pull
+            docker compose up -d --force-recreate
+          "
+
+          # 'docker wait' blocks until the one-shot container exits and prints its exit code.
+          # It is its own ssh call so the command substitution is evaluated on the runner and
+          # not inside the quoted remote script.
+          echo "⏳ Waiting for ${MIG_CONTAINER} to finish (timeout: ${MIGRATIONS_TIMEOUT_SECONDS}s)..."
+          MIG_EXIT_CODE="$(tailscale ssh "$SSH_TARGET" \
+            "timeout ${MIGRATIONS_TIMEOUT_SECONDS} docker wait ${MIG_CONTAINER}" \
+            | tr -d '[:space:]' || true)"
+
+          echo "::group::Migration logs (${MIG_CONTAINER})"
+          tailscale ssh "$SSH_TARGET" "cd ${MIG_DIR} && docker compose logs --no-color --tail 500" || true
+          echo "::endgroup::"
+
+          # One-shot container: never leave it running. This also stops the restart loop on
+          # any server whose compose file still carries the old 'restart' policy.
+          tailscale ssh "$SSH_TARGET" "cd ${MIG_DIR} && docker compose stop" >/dev/null 2>&1 || true
+
+          if [ "$MIG_EXIT_CODE" != "0" ]; then
+            echo "::error::Migrations failed (exit code: ${MIG_EXIT_CODE:-timeout}). Aborting before the application is deployed."
+            exit 1
+          fi
+
+          echo "✅ Migrations applied successfully."
 
       # 5) Deploy application
       - name: Deploy application
         run: |
+          set -euo pipefail
+
           APP_NAME="${{ inputs.app_name || github.event.repository.name }}"
 
           DEPLOY_DIR="${DEPLOY_APPS_ROOT}/infra-${DEPLOY_SERVER}/${APP_NAME}"
