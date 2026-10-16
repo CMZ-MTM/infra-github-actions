@@ -3,7 +3,7 @@ description: Build and publish ef migrations Container
 
 inputs:  
   solution_path:
-    description: 'Path to the .sln file'
+    description: 'Path to the .sln file (kept for compatibility; only project_path is restored)'
     required: true
   project_path:
     description: 'Path to the .csproj file'
@@ -32,6 +32,10 @@ inputs:
   ef_context:
     description: "Optional EF DbContext name"
     required: false
+  self_contained:
+    description: "'true' bundles the .NET runtime into efbundle; 'false' builds a framework-dependent bundle, which needs an ASP.NET Core base image (mcr.microsoft.com/dotnet/aspnet)"
+    required: false
+    default: 'true'
 
 runs:
   using: "composite"
@@ -66,6 +70,14 @@ runs:
       with:
         dotnet-version: '10.x'
 
+    - name: Cache NuGet packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+        restore-keys: |
+          nuget-${{ runner.os }}-
+
     - name: Setup Ef Core Tools
       shell: bash
       run: dotnet tool install dotnet-ef --version 10.0.8 --global
@@ -90,8 +102,12 @@ runs:
 
     - name: NuGet Restore
       shell: bash
-      run: dotnet restore ${{github.workspace}}/${{ inputs.solution_path }}
-      
+      run: dotnet restore ${{github.workspace}}/${{ inputs.project_path }}
+
+    - name: Build EF startup project
+      shell: bash
+      run: dotnet build "${{ github.workspace }}/${{ inputs.ef_startup_project }}" --configuration Release
+
     - name: Build EF migration bundle
       shell: bash
       working-directory: migrations
@@ -99,16 +115,28 @@ runs:
         set -euo pipefail
         export PATH="$PATH:/home/runner/.dotnet/tools"
         EF_CONTEXT="${{ inputs.ef_context }}"
+        SELF_CONTAINED="${{ inputs.self_contained }}"
 
+        if [[ "$SELF_CONTAINED" != "true" && "$SELF_CONTAINED" != "false" ]]; then
+          echo "::error::Invalid self_contained value '$SELF_CONTAINED'. Use 'true' or 'false'."
+          exit 1
+        fi
+
+        # The startup project was already built in Release by the previous step.
         dotnet_ef_args=(
           migrations bundle
           --verbose
           --project "${{ github.workspace }}/${{ inputs.ef_project }}"
           --startup-project "${{github.workspace}}/${{ inputs.ef_startup_project }}"
+          --configuration Release
+          --no-build
           --output efbundle
-          --self-contained
           --target-runtime linux-x64
         )
+
+        if [[ "$SELF_CONTAINED" == "true" ]]; then
+          dotnet_ef_args+=(--self-contained)
+        fi
 
         if [[ -n "$EF_CONTEXT" ]]; then
           dotnet_ef_args+=(--context "$EF_CONTEXT")

@@ -18,3 +18,9 @@ In your workflow, you can use this action as follows:
     container_name: identity-backend
 
 ```
+
+## ⚡ Caching
+
+- NuGet packages (`~/.nuget/packages`) are cached between runs, keyed on the `*.csproj` / `Directory.*.props` files.
+- Docker layers are cached in the GitHub Actions cache (scope: `container_name`), so steps such as `apt-get install` in `DockerBuild` are only re-run when they change.
+- Only `project_path` is restored; `solution_path` is kept for compatibility.

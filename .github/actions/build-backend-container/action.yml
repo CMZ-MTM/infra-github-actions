@@ -3,7 +3,7 @@ description: Build and publish a .NET Container
 
 inputs:  
   solution_path:
-    description: 'Path to the .sln file'
+    description: 'Path to the .sln file (kept for compatibility; only project_path is restored)'
     required: true
   project_path:
     description: 'Path to the .csproj file'
@@ -57,6 +57,14 @@ runs:
       with:
         dotnet-version: '10.x'
 
+    - name: Cache NuGet packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+        restore-keys: |
+          nuget-${{ runner.os }}-
+
     - name: Login to GHCR
       uses: docker/login-action@v3
       with:
@@ -77,7 +85,7 @@ runs:
 
     - name: NuGet Restore
       shell: bash
-      run: dotnet restore ${{github.workspace}}/${{ inputs.solution_path }}
+      run: dotnet restore ${{github.workspace}}/${{ inputs.project_path }}
 
     - name: Build and publish
       shell: bash
@@ -93,6 +101,8 @@ runs:
             ghcr.io/cmz-mtm/${{ inputs.container_name }}:${{ env.VERSION }}
             ghcr.io/cmz-mtm/${{ inputs.container_name }}:test-latest
         push: true
+        cache-from: type=gha,scope=${{ inputs.container_name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.container_name }},ignore-error=true
 
     - name: Build and Push Image (Master)
       if: github.ref == 'refs/heads/master'
@@ -104,7 +114,9 @@ runs:
             ghcr.io/cmz-mtm/${{ inputs.container_name }}:${{ env.VERSION }}
             ghcr.io/cmz-mtm/${{ inputs.container_name }}:latest
         push: true
-          
+        cache-from: type=gha,scope=${{ inputs.container_name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.container_name }},ignore-error=true
+
     - name: Build and Push Image (Dev)
       if: github.ref == 'refs/heads/dev'
       uses: docker/build-push-action@v7
@@ -112,4 +124,6 @@ runs:
         context: ./build
         file: ${{github.workspace}}/DockerBuild
         tags: ghcr.io/cmz-mtm/${{ inputs.container_name }}:dev-latest
-        push: true 
+        push: true
+        cache-from: type=gha,scope=${{ inputs.container_name }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.container_name }},ignore-error=true
