@@ -27,7 +27,7 @@ In your workflow, you can use this action as follows:
 
 - NuGet packages (`~/.nuget/packages`) are cached between runs, keyed on the `*.csproj` / `Directory.*.props` files.
 - The startup project is built once in `Release` and the bundle is created with `--no-build`.
-- `self_contained: 'false'` produces a framework-dependent bundle (~3x smaller; it does not ship its own .NET runtime). It requires `migrations/Dockerfile` to use an ASP.NET Core base image, which also shares its layers with the backend image:
+- `self_contained: 'false'` produces a framework-dependent bundle (~3x smaller; it does not ship its own .NET runtime). The startup project is then published for `linux-x64` with the same flags `migrations bundle` uses internally, so the bundle reuses that build instead of compiling the application a second time. It requires `migrations/Dockerfile` to use an ASP.NET Core base image, which also shares its layers with the backend image:
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS migrator

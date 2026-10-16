@@ -3,10 +3,10 @@ description: Build and publish ef migrations Container
 
 inputs:  
   solution_path:
-    description: 'Path to the .sln file (kept for compatibility; only project_path is restored)'
+    description: 'Path to the .sln file (kept for compatibility; ef_startup_project is what gets restored and built)'
     required: true
   project_path:
-    description: 'Path to the .csproj file'
+    description: 'Path to the .csproj file (kept for compatibility; ef_startup_project is what gets restored and built)'
     required: true
   token:
     description: "GitHub token"
@@ -100,13 +100,30 @@ runs:
           --store-password-in-clear-text \
           --configfile NuGet.Config
 
-    - name: NuGet Restore
-      shell: bash
-      run: dotnet restore ${{github.workspace}}/${{ inputs.project_path }}
-
     - name: Build EF startup project
       shell: bash
-      run: dotnet build "${{ github.workspace }}/${{ inputs.ef_startup_project }}" --configuration Release
+      run: |
+        set -euo pipefail
+        SELF_CONTAINED="${{ inputs.self_contained }}"
+        STARTUP_PROJECT="${{ github.workspace }}/${{ inputs.ef_startup_project }}"
+
+        if [[ "$SELF_CONTAINED" != "true" && "$SELF_CONTAINED" != "false" ]]; then
+          echo "::error::Invalid self_contained value '$SELF_CONTAINED'. Use 'true' or 'false'."
+          exit 1
+        fi
+
+        if [[ "$SELF_CONTAINED" == "false" ]]; then
+          # Same flags as the publish that "migrations bundle" runs internally, so the bundle
+          # reuses this restore and build instead of compiling the application again.
+          dotnet publish "$STARTUP_PROJECT" \
+            --configuration Release \
+            --runtime linux-x64 \
+            --no-self-contained \
+            --disable-build-servers \
+            --output "${{ runner.temp }}/ef-startup-publish"
+        else
+          dotnet build "$STARTUP_PROJECT" --configuration Release
+        fi
 
     - name: Build EF migration bundle
       shell: bash
@@ -116,11 +133,6 @@ runs:
         export PATH="$PATH:/home/runner/.dotnet/tools"
         EF_CONTEXT="${{ inputs.ef_context }}"
         SELF_CONTAINED="${{ inputs.self_contained }}"
-
-        if [[ "$SELF_CONTAINED" != "true" && "$SELF_CONTAINED" != "false" ]]; then
-          echo "::error::Invalid self_contained value '$SELF_CONTAINED'. Use 'true' or 'false'."
-          exit 1
-        fi
 
         # The startup project was already built in Release by the previous step.
         dotnet_ef_args=(
@@ -136,6 +148,9 @@ runs:
 
         if [[ "$SELF_CONTAINED" == "true" ]]; then
           dotnet_ef_args+=(--self-contained)
+        else
+          # Load the startup assembly from the linux-x64 build of the previous step.
+          dotnet_ef_args+=(--runtime linux-x64)
         fi
 
         if [[ -n "$EF_CONTEXT" ]]; then
