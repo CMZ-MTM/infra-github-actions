@@ -13,6 +13,11 @@ on:
         required: false
         type: string
 
+      hostname:
+        description: "Tailscale hostname for the runner, max 63 chars (defaults to github-deploy-<repo>-<environment>-<run_id>)"
+        required: false
+        type: string
+
       migrations_needed:
         description: "Override migrations (yes/no)"
         required: false
@@ -126,10 +131,22 @@ jobs:
       - name: Connect to Tailnet
         env:
           TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+          # PRIORIDAD: input > github-deploy-<repo>-<environment>-<run_id>
+          TS_HOSTNAME: ${{ inputs.hostname || format('github-deploy-{0}-{1}-{2}', github.event.repository.name, inputs.environment, github.run_id) }}
         run: |
+          set -euo pipefail
+
+          # Tailscale rejects hostnames longer than a DNS label (63 characters).
+          if [ "${#TS_HOSTNAME}" -gt 63 ]; then
+            echo "::error::Tailscale hostname '${TS_HOSTNAME}' is ${#TS_HOSTNAME} characters long (max 63). Pass a shorter name with the 'hostname' input."
+            exit 1
+          fi
+
+          echo "🔌 Connecting to Tailnet as: ${TS_HOSTNAME}"
+
           sudo tailscale up \
             --authkey="$TS_AUTHKEY" \
-            --hostname="github-deploy-${{ github.event.repository.name }}-${{ inputs.environment }}-${{ github.run_id }}" \
+            --hostname="$TS_HOSTNAME" \
             --accept-dns=true
 
       # 4) Migrations first (if enabled).
