@@ -30,6 +30,7 @@ The following inputs need to be declared when calling the workflow.
 |-------------|-----------------------------------------------|-------------|
 | environment | Deployment environment label                  | `prod` or `test`      |
 | app_name | Directory name on the server                  | defaults to the repo name |
+| hostname | Tailscale hostname of the CI runner (max 63 characters) | defaults to `github-deploy-<repo>-<environment>-<run_id>` |
 | migrations_needed | Per-call override of `DEPLOY_MIGRATIONS_NEEDED` | `yes` or `no` |
 | migrations_timeout_seconds | Max seconds to wait for the migrations container to finish | defaults to `900` |
 
@@ -111,6 +112,21 @@ jobs:
 ```
 
 For prod, set `environment: prod` and ensure `DEPLOY_PROD_ALLOWED_ACTORS` and `DEPLOY_SERVER_PROD` are set.
+
+### 🏷️ Custom Tailscale hostname (`hostname`)
+
+The runner joins the tailnet as `github-deploy-<repo>-<environment>-<run_id>`. Tailscale limits
+hostnames to 63 characters, so repositories with names longer than about 32 characters exceed it and
+the deploy fails at **Connect to Tailnet**. In that case, pass a shorter name. It replaces the
+default name entirely, so keep `${{ github.run_id }}` in it to tell runs apart in the Tailscale admin:
+
+```yaml
+    with:
+      environment: test
+      hostname: gh-deploy-myapp-test-${{ github.run_id }}
+```
+
+The input only changes the runner's name on the tailnet; the deploy itself is unchanged.
 
 ---
 
